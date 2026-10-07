@@ -8,7 +8,7 @@ pip install --upgrade git+https://github.com/ket-q/cas3140-grader.git
 
 To use in your notebook:
 ```python
-from cas3140-grader import submit, best_score
+from cas3140_grader import submit, best_score
 import getpass
 
 TOKEN = getpass.getpass("Token: ")  # Your token is required to access the server

@@ -20,4 +20,4 @@ functions = ["dill==0.4.1"]
 qiskit = ["dill==0.4.1", "qiskit>=1.0"]
  
 [tool.hatch.build.targets.wheel]
-packages = ["src/cas3140-grader"]
+packages = ["src/cas3140_grader"]
