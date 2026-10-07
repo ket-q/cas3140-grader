@@ -1,10 +1,3 @@
-"""Public response models returned by the CAS3140 student interface.
-
-This module is deliberately independent of :mod:`cas3140_protocol`: it is
-part of the student-facing API and can be published without
-also publishing the request, grading, and internal-service models.
-"""
-
 from pydantic import BaseModel, ConfigDict, StrictFloat, StrictInt, StrictStr
 
 

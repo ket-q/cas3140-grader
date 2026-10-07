@@ -1,4 +1,4 @@
-"""Student submission interface for the CAS3140 example server."""
+"""Student submission interface for the CAS3140 server."""
 
 from .students import best_score, submit
 from .models import BestScoreResponse, ProcessResponse

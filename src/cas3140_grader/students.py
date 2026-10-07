@@ -1,5 +1,3 @@
-"""HTTPS student submission interface for token-authenticated grading."""
-
 from __future__ import annotations
 
 import base64
@@ -117,7 +115,7 @@ def _best_score(
     url: str,
     certificate: str = DEFAULT_CERTIFICATE,
 ) -> BestScoreResponse | None:
-    """Look up a best score at an explicit URL; used by local manual tests."""
+    """Look up a best score at an explicit URL."""
     if not token:
         raise ValueError("A submission token is required.")
     tls_context = ssl.create_default_context(cadata=certificate)
