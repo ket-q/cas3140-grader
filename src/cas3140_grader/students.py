@@ -83,15 +83,21 @@ def _submit(
         raise ValueError("A submission token is required.")
     packed_value = _pack_submission_value(value)
     tls_context = ssl.create_default_context(cadata=certificate)
-    with httpx.Client(verify=tls_context) as session:
+    # Grading may legitimately take longer than HTTPX's default 5-second timeout.
+    with httpx.Client(verify=tls_context, timeout=None) as session:
         response = session.post(f"{url.rstrip('/')}/submit", json={"token": token, "lab": lab, "problem": problem, "value": packed_value})
-    if response.is_error:
+    try:
+        response.raise_for_status()
+    except httpx.HTTPStatusError:
+        if response.status_code == 413:
+            print("Submission rejected: the request is too large (HTTP 413). Reduce the submission size and try again.")
+            return None
         try:
             message = response.json()["error"]["message"]
         except (KeyError, TypeError, ValueError):
             message = response.text
         print(message)
-        return
+        return None
     result = ProcessResponse.model_validate(response.json())
     print(f"Score: {result.score} / (Best score: {result.best_score})")
     return result
@@ -115,11 +121,11 @@ def _best_score(
     url: str,
     certificate: str = DEFAULT_CERTIFICATE,
 ) -> BestScoreResponse | None:
-    """Look up a best score at an explicit URL."""
+    """Look up a best score at an explicit URL; used by local manual tests."""
     if not token:
         raise ValueError("A submission token is required.")
     tls_context = ssl.create_default_context(cadata=certificate)
-    with httpx.Client(verify=tls_context) as session:
+    with httpx.Client(verify=tls_context, timeout=None) as session:
         response = session.post(
             f"{url.rstrip('/')}/best-score",
             json={"token": token, "lab": lab, "problem": problem},
