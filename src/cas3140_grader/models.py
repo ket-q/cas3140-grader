@@ -1,5 +1,7 @@
 from pydantic import BaseModel, ConfigDict, StrictFloat, StrictInt, StrictStr
 
+Slug = StrictStr
+
 
 class StudentModel(BaseModel):
     """Base class for strict models exposed to students."""
@@ -19,8 +21,23 @@ class BestScoreResponse(StudentModel):
     """Best recorded score for a lab problem."""
 
     lab: StrictInt
-    problem: StrictInt
+    slug: Slug
+    best_score: StrictFloat | None
+    
+
+class ProblemBestScore(StudentModel):
+    """Best recorded score for one problem (None: no attempt yet)."""
+
+    slug: Slug
     best_score: StrictFloat | None
 
 
-__all__ = ["BestScoreResponse", "ProcessResponse", "StudentModel"]
+class BestScoresResponse(StudentModel):
+    """Best recorded score for every problem of a lab."""
+
+    lab: StrictInt
+    scores: list[ProblemBestScore]
+    total: StrictFloat
+
+
+__all__ = ["BestScoreResponse", "BestScoresResponse", "ProblemBestScore", "ProcessResponse", "StudentModel"]

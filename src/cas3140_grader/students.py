@@ -8,7 +8,8 @@ from typing import Any
 
 import httpx
 
-from .models import BestScoreResponse, ProcessResponse
+from .accounts import resolve_token
+from .models import BestScoreResponse, BestScoresResponse, ProcessResponse
 
 DEFAULT_SUBMISSION_URL = os.environ.get("CAS3140_SUBMISSION_URL", "https://165.132.172.120")
 DEFAULT_CERTIFICATE = """-----BEGIN CERTIFICATE-----
@@ -58,20 +59,23 @@ def _pack_submission_value(value: Any) -> Any:
     return value
 
 
-def submit(lab: int, problem: int, value: Any, *, token: str) -> ProcessResponse | None:
-    """Submit to the configured request server, print scores, and return its response."""
+def submit(lab: int, slug: str, value: Any, *, token: str | None = None) -> ProcessResponse | None:
+    """Submit to the configured request server, print scores, and return its response.
+    
+    Use ``token`` saved by ``save_account()``.
+    """
     return _submit(
         lab,
-        problem,
+        slug,
         value,
-        token=token,
+        token=resolve_token(token),
         url=DEFAULT_SUBMISSION_URL,
     )
 
 
 def _submit(
     lab: int,
-    problem: int,
+    slug: str,
     value: Any,
     *,
     token: str,
@@ -85,7 +89,7 @@ def _submit(
     tls_context = ssl.create_default_context(cadata=certificate)
     # Grading may legitimately take longer than HTTPX's default 5-second timeout.
     with httpx.Client(verify=tls_context, timeout=None) as session:
-        response = session.post(f"{url.rstrip('/')}/submit", json={"token": token, "lab": lab, "problem": problem, "value": packed_value})
+        response = session.post(f"{url.rstrip('/')}/submit", json={"token": token, "lab": lab, "slug": slug, "value": packed_value})
     try:
         response.raise_for_status()
     except httpx.HTTPStatusError:
@@ -103,19 +107,19 @@ def _submit(
     return result
 
 
-def best_score(lab: int, problem: int, *, token: str) -> BestScoreResponse | None:
+def best_score(lab: int, slug: str, *, token: str | None = None) -> BestScoreResponse | None:
     """Print and return the token owner's best score for one lab problem."""
     return _best_score(
         lab,
-        problem,
-        token=token,
+        slug,
+        token=resolve_token(token),
         url=DEFAULT_SUBMISSION_URL,
     )
 
 
 def _best_score(
     lab: int,
-    problem: int,
+    slug: str,
     *,
     token: str,
     url: str,
@@ -128,7 +132,7 @@ def _best_score(
     with httpx.Client(verify=tls_context, timeout=None) as session:
         response = session.post(
             f"{url.rstrip('/')}/best-score",
-            json={"token": token, "lab": lab, "problem": problem},
+            json={"token": token, "lab": lab, "slug": slug},
         )
     if response.is_error:
         try:
@@ -139,4 +143,41 @@ def _best_score(
         return None
     result = BestScoreResponse.model_validate(response.json())
     print(f"Best score: {result.best_score}")
+    return result
+
+
+def best_scores(lab: int, *, token: str | None = None) -> BestScoresResponse | None:
+    """Print and return the token owner's best score for every problem of one lab."""
+    return _best_scores(
+        lab, 
+        token=resolve_token(token), 
+        url=DEFAULT_SUBMISSION_URL
+    )
+
+
+def _best_scores(
+    lab: int,
+    *,
+    token: str,
+    url: str,
+    certificate: str = DEFAULT_CERTIFICATE,
+) -> BestScoresResponse | None:
+    """Look up all best scores of a lab at an explicit URL."""
+    if not token:
+        raise ValueError("A submission token is required.")
+    tls_context = ssl.create_default_context(cadata=certificate)
+    with httpx.Client(verify=tls_context) as session:
+        response = session.post(f"{url.rstrip('/')}/best-scores", json={"token": token, "lab": lab})
+    if response.is_error:
+        try:
+            message = response.json()["error"]["message"]
+        except (KeyError, TypeError, ValueError):
+            message = response.text
+        print(message)
+        return None
+    result = BestScoresResponse.model_validate(response.json())
+    print(f"Lab {result.lab} best scores")
+    for item in result.scores:
+        print(f"  {item.slug}: {'not submitted' if item.best_score is None else item.best_score}")
+    print(f"  Total: {result.total}")
     return result

@@ -8,13 +8,14 @@ pip install --upgrade git+https://github.com/ket-q/cas3140-grader.git
 
 To use in your notebook:
 ```python
-from cas3140_grader import submit, best_score
-import getpass
+from cas3140_grader import submit, best_score, save_account, saved_account
 
-TOKEN = getpass.getpass("Token: ")  # Your token is required to access the server
+save_account()  # This will ask for your token, and save the input as a file in your current Python environment
 
-result = submit(1, 2, myAnswer, token=TOKEN)  # Submit myAnswer to lab 1 problem 2
+saved_account()  # This will return the location of your saved token. This token is needed to access the grading server.
+
+result = submit(1, "sample_problem", myAnswer)  # Submit myAnswer to sample_problem inside lab 1
 print(result.msg)  # See the grading feedback
 
-best_score(1, 2, token=TOKEN)  # See what is your highest score achieved for lab 1 problem 2
+best_score(1, "sample_problem")  # See what is your highest score achieved for sample_problem in lab 1
 ```
