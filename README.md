@@ -11,11 +11,13 @@ To use in your notebook:
 from cas3140_grader import submit, best_score, save_account, saved_account
 
 save_account()  # This will ask for your token, and save the input as a file in your current Python environment
+# You only need to run the above command once per Python environment
+saved_account()  # This will return the location of your saved token. This token is needed to access the grading server
 
-saved_account()  # This will return the location of your saved token. This token is needed to access the grading server.
-
-result = submit(1, "sample_problem", myAnswer)  # Submit myAnswer to sample_problem inside lab 1
+result = submit("lab01", "sample_problem", myAnswer)  # Submit myAnswer to sample_problem inside lab 1
 print(result.msg)  # See the grading feedback
 
-best_score(1, "sample_problem")  # See what is your highest score achieved for sample_problem in lab 1
+best_score("lab01", "sample_problem")  # See what is your highest score achieved for sample_problem in lab 1
+
+best_scores("lab01")  # See what are all your achieved scores for lab 1
 ```

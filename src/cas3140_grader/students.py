@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import io
 import os
+import re
 import ssl
 from typing import Any
 
@@ -29,6 +30,7 @@ _SERIALIZED_TYPE = "_cas3140_serialized_type"
 _SERIALIZED_PAYLOAD = "payload"
 _FUNCTION_TYPE = "dill_function"
 _CIRCUIT_TYPE = "qiskit_qpy"
+_LAB_NAME_RE = re.compile(r"lab(\d{2})")
 
 
 def _encoded_value(kind: str, payload: bytes) -> dict[str, str]:
@@ -59,7 +61,7 @@ def _pack_submission_value(value: Any) -> Any:
     return value
 
 
-def submit(lab: int, slug: str, value: Any, *, token: str | None = None) -> ProcessResponse | None:
+def submit(lab: str, slug: str, value: Any, *, token: str | None = None) -> ProcessResponse | None:
     """Submit to the configured request server, print scores, and return its response.
     
     Use ``token`` saved by ``save_account()``.
@@ -74,7 +76,7 @@ def submit(lab: int, slug: str, value: Any, *, token: str | None = None) -> Proc
 
 
 def _submit(
-    lab: int,
+    lab: str,
     slug: str,
     value: Any,
     *,
@@ -85,11 +87,15 @@ def _submit(
     """Submit to an explicitly supplied URL, print its result, and return it."""
     if not token:
         raise ValueError("A submission token is required.")
+    match = _LAB_NAME_RE.fullmatch(lab)
+    if match is None:
+        raise ValueError("lab must have the format 'labXX', where XX is a two-digit integer.")
+    lab_number = int(match.group(1))
     packed_value = _pack_submission_value(value)
     tls_context = ssl.create_default_context(cadata=certificate)
     # Grading may legitimately take longer than HTTPX's default 5-second timeout.
     with httpx.Client(verify=tls_context, timeout=None) as session:
-        response = session.post(f"{url.rstrip('/')}/submit", json={"token": token, "lab": lab, "slug": slug, "value": packed_value})
+        response = session.post(f"{url.rstrip('/')}/submit", json={"token": token, "lab": lab_number, "slug": slug, "value": packed_value})
     try:
         response.raise_for_status()
     except httpx.HTTPStatusError:
@@ -107,7 +113,7 @@ def _submit(
     return result
 
 
-def best_score(lab: int, slug: str, *, token: str | None = None) -> BestScoreResponse | None:
+def best_score(lab: str, slug: str, *, token: str | None = None) -> BestScoreResponse | None:
     """Print and return the token owner's best score for one lab problem."""
     return _best_score(
         lab,
@@ -118,7 +124,7 @@ def best_score(lab: int, slug: str, *, token: str | None = None) -> BestScoreRes
 
 
 def _best_score(
-    lab: int,
+    lab: str,
     slug: str,
     *,
     token: str,
@@ -128,11 +134,15 @@ def _best_score(
     """Look up a best score at an explicit URL; used by local manual tests."""
     if not token:
         raise ValueError("A submission token is required.")
+    match = _LAB_NAME_RE.fullmatch(lab)
+    if match is None:
+        raise ValueError("lab must have the format 'labXX', where XX is a two-digit integer.")
+    lab_number = int(match.group(1))
     tls_context = ssl.create_default_context(cadata=certificate)
     with httpx.Client(verify=tls_context, timeout=None) as session:
         response = session.post(
             f"{url.rstrip('/')}/best-score",
-            json={"token": token, "lab": lab, "slug": slug},
+            json={"token": token, "lab": lab_number, "slug": slug},
         )
     if response.is_error:
         try:
@@ -146,7 +156,7 @@ def _best_score(
     return result
 
 
-def best_scores(lab: int, *, token: str | None = None) -> BestScoresResponse | None:
+def best_scores(lab: str, *, token: str | None = None) -> BestScoresResponse | None:
     """Print and return the token owner's best score for every problem of one lab."""
     return _best_scores(
         lab, 
@@ -156,7 +166,7 @@ def best_scores(lab: int, *, token: str | None = None) -> BestScoresResponse | N
 
 
 def _best_scores(
-    lab: int,
+    lab: str,
     *,
     token: str,
     url: str,
@@ -165,9 +175,13 @@ def _best_scores(
     """Look up all best scores of a lab at an explicit URL."""
     if not token:
         raise ValueError("A submission token is required.")
+    match = _LAB_NAME_RE.fullmatch(lab)
+    if match is None:
+        raise ValueError("lab must have the format 'labXX', where XX is a two-digit integer.")
+    lab_number = int(match.group(1))
     tls_context = ssl.create_default_context(cadata=certificate)
     with httpx.Client(verify=tls_context) as session:
-        response = session.post(f"{url.rstrip('/')}/best-scores", json={"token": token, "lab": lab})
+        response = session.post(f"{url.rstrip('/')}/best-scores", json={"token": token, "lab": lab_number})
     if response.is_error:
         try:
             message = response.json()["error"]["message"]
