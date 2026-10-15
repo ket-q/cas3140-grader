@@ -8,7 +8,10 @@ pip install --upgrade git+https://github.com/ket-q/cas3140-grader.git
 
 To use in your notebook:
 ```python
-from cas3140_grader import submit, best_score, save_account, saved_account
+from cas3140_grader import submit, best_score, save_account, saved_account, check_versions
+
+check_versions()  # Optional: This will check if your Python and Qiskit installation matches the one on the grading server
+# Grading will fail if they do not match
 
 save_account()  # This will ask for your token, and save the input as a file in your current Python environment
 # You only need to run the above command once per Python environment
