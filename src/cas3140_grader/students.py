@@ -5,12 +5,14 @@ import io
 import os
 import re
 import ssl
+import sys
+from importlib.metadata import PackageNotFoundError, version
 from typing import Any
 
 import httpx
 
 from .accounts import resolve_token
-from .models import BestScoreResponse, BestScoresResponse, ProcessResponse
+from .models import BestScoreResponse, BestScoresResponse, ProcessResponse, VersionCheckResponse
 
 DEFAULT_SUBMISSION_URL = os.environ.get("CAS3140_SUBMISSION_URL", "https://165.132.172.120")
 DEFAULT_CERTIFICATE = """-----BEGIN CERTIFICATE-----
@@ -31,6 +33,28 @@ _SERIALIZED_PAYLOAD = "payload"
 _FUNCTION_TYPE = "dill_function"
 _CIRCUIT_TYPE = "qiskit_qpy"
 _LAB_NAME_RE = re.compile(r"lab(\d{2})")
+
+
+def _submission_versions() -> dict[str, str | None]:
+    """Collect installed versions without importing the packages."""
+    versions: dict[str, str | None] = {"python": ".".join(map(str, sys.version_info[:3]))}
+    for package in ("qiskit", "dill"):
+        try:
+            versions[package] = version(package)
+        except PackageNotFoundError:
+            raise ValueError(
+                f"The '{package}' package is not installed. "
+                "Please follow the setup instructions to install the required packages."
+            ) from None
+    return versions
+
+
+def _server_error_message(response: httpx.Response) -> str:
+    """Read the public error message supplied by the request server."""
+    try:
+        return response.json()["error"]["message"]
+    except (KeyError, TypeError, ValueError):
+        return response.text
 
 
 def _encoded_value(kind: str, payload: bytes) -> dict[str, str]:
@@ -91,25 +115,59 @@ def _submit(
     if match is None:
         raise ValueError("lab must have the format 'labXX', where XX is a two-digit integer.")
     lab_number = int(match.group(1))
+    versions = _submission_versions()
     packed_value = _pack_submission_value(value)
     tls_context = ssl.create_default_context(cadata=certificate)
     # Grading may legitimately take longer than HTTPX's default 5-second timeout.
     with httpx.Client(verify=tls_context, timeout=None) as session:
-        response = session.post(f"{url.rstrip('/')}/submit", json={"token": token, "lab": lab_number, "slug": slug, "value": packed_value})
+        response = session.post(
+            f"{url.rstrip('/')}/submit",
+            json={"token": token, "lab": lab_number, "slug": slug,
+                  "value": packed_value, "versions": versions},
+        )
     try:
         response.raise_for_status()
     except httpx.HTTPStatusError:
         if response.status_code == 413:
             print("Submission rejected: the request is too large (HTTP 413). Reduce the submission size and try again.")
             return None
-        try:
-            message = response.json()["error"]["message"]
-        except (KeyError, TypeError, ValueError):
-            message = response.text
-        print(message)
+        print(_server_error_message(response))
         return None
     result = ProcessResponse.model_validate(response.json())
+    #  If version mismatch found, it is reported here
+    print(result.msg)
     print(f"Score: {result.score} / (Best score: {result.best_score})")
+    return result
+
+
+def check_versions(*, token: str | None = None) -> VersionCheckResponse | None:
+    """Check this environment against the grading environment."""
+    return _check_versions(token=resolve_token(token), url=DEFAULT_SUBMISSION_URL)
+
+
+def _check_versions(
+    *, token: str, url: str, certificate: str = DEFAULT_CERTIFICATE,
+) -> VersionCheckResponse | None:
+    if not token:
+        raise ValueError("A submission token is required.")
+    versions = _submission_versions()
+    print(f"Python version: {versions['python']}")
+    print(f"Qiskit version: {versions['qiskit']}")
+    tls_context = ssl.create_default_context(cadata=certificate)
+    with httpx.Client(verify=tls_context, timeout=None) as session:
+        response = session.post(
+            f"{url.rstrip('/')}/check-versions",
+            json={"token": token, "versions": versions},
+        )
+    if response.status_code == 401:
+        print(_server_error_message(response))
+        return None
+    # Service failures are HTTP errors, not version mismatches
+    response.raise_for_status()
+    result = VersionCheckResponse.model_validate(response.json())
+    if not result.compatible:
+        raise ValueError(result.msg)
+    print("Version check passed. Your Python and Qiskit versions are compatible with the grading environment.")
     return result
 
 
@@ -145,11 +203,7 @@ def _best_score(
             json={"token": token, "lab": lab_number, "slug": slug},
         )
     if response.is_error:
-        try:
-            message = response.json()["error"]["message"]
-        except (KeyError, TypeError, ValueError):
-            message = response.text
-        print(message)
+        print(_server_error_message(response))
         return None
     result = BestScoreResponse.model_validate(response.json())
     print(f"Best score: {result.best_score}")
@@ -180,14 +234,10 @@ def _best_scores(
         raise ValueError("lab must have the format 'labXX', where XX is a two-digit integer.")
     lab_number = int(match.group(1))
     tls_context = ssl.create_default_context(cadata=certificate)
-    with httpx.Client(verify=tls_context) as session:
+    with httpx.Client(verify=tls_context, timeout=None) as session:
         response = session.post(f"{url.rstrip('/')}/best-scores", json={"token": token, "lab": lab_number})
     if response.is_error:
-        try:
-            message = response.json()["error"]["message"]
-        except (KeyError, TypeError, ValueError):
-            message = response.text
-        print(message)
+        print(_server_error_message(response))
         return None
     result = BestScoresResponse.model_validate(response.json())
     print(f"Lab {result.lab} best scores")

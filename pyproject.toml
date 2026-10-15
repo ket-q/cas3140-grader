@@ -4,20 +4,20 @@ build-backend = "hatchling.build"
  
 [project]
 name = "cas3140-grader"
-version = "0.2.4"
+version = "0.2.5"
 description = "Student client for submitting CAS3140 lab work from Jupyter notebooks."
 readme = "README.md"
 requires-python = "~=3.12"
 dependencies = [
     "httpx>=0.28",
     "pydantic>=2.5",
+	"dill==0.4.1",
+	"qiskit==2.5.2",
 ]
  
 [project.optional-dependencies]
-# Lab problems that submit a Python function (dill) or a Qiskit circuit (QPY).
-# dill is pinned to the grading server's version. 
-functions = ["dill==0.4.1"]
-qiskit = ["dill==0.4.1", "qiskit>=1.0"]
+functions = []
+qiskit = []
  
 [tool.hatch.build.targets.wheel]
 packages = ["src/cas3140_grader"]

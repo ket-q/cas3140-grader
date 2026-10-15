@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict, StrictFloat, StrictInt, StrictStr
+from pydantic import BaseModel, ConfigDict, StrictBool, StrictFloat, StrictInt, StrictStr
 
 Slug = StrictStr
 
@@ -15,6 +15,12 @@ class ProcessResponse(StudentModel):
     score: StrictFloat
     msg: StrictStr
     best_score: StrictFloat | None = None
+    
+class VersionCheckResponse(StudentModel):
+    """Compatibility of the local environment with the grader."""
+    
+    compatible: StrictBool
+    msg: StrictStr
 
 
 class BestScoreResponse(StudentModel):
@@ -40,4 +46,4 @@ class BestScoresResponse(StudentModel):
     total: StrictFloat
 
 
-__all__ = ["BestScoreResponse", "BestScoresResponse", "ProblemBestScore", "ProcessResponse", "StudentModel"]
+__all__ = ["BestScoreResponse", "BestScoresResponse", "ProblemBestScore", "ProcessResponse", "StudentModel", "VersionCheckResponse"]
