@@ -8,6 +8,8 @@ import ssl
 import sys
 from importlib.metadata import PackageNotFoundError, version
 from typing import Any
+from beartype.door import die_if_unbearable
+from beartype.roar import BeartypeDoorHintViolation
 
 import httpx
 
@@ -245,3 +247,12 @@ def _best_scores(
         print(f"  {item.slug}: {'not submitted' if item.best_score is None else item.best_score}")
     print(f"  Total: {result.total}")
     return result
+
+def verify_variable(variable_obj, target_type_obj):
+    """Polymorphic helper that runs checks using the passed type object."""
+    try:
+        die_if_unbearable(variable_obj, target_type_obj)
+        print("✅ Type check passed.")
+    except BeartypeDoorHintViolation as e:
+        # Re-raise as a clean, standardized TypeError for the student
+        raise TypeError(f"Variable failed structural type contract. Details: {e}") from None
