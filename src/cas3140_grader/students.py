@@ -6,6 +6,7 @@ import os
 import re
 import ssl
 import sys
+import pickle
 from importlib.metadata import PackageNotFoundError, version
 from typing import Any
 from beartype.door import die_if_unbearable
@@ -32,6 +33,7 @@ njAKBggqhkjOPQQDAgNIADBFAiB0VWQHbtRwflDSqaln0rGKmfr9i5mOArqlQLUY
 
 _SERIALIZED_TYPE = "_cas3140_serialized_type"
 _SERIALIZED_PAYLOAD = "payload"
+_PICKLE_TYPE = "pickle_value"
 _FUNCTION_TYPE = "dill_function"
 _CIRCUIT_TYPE = "qiskit_qpy"
 _LAB_NAME_RE = re.compile(r"lab(\d{2})")
@@ -68,6 +70,25 @@ def _encoded_value(kind: str, payload: bytes) -> dict[str, str]:
 
 def _pack_submission_value(value: Any) -> Any:
     """Encode values that JSON cannot represent for the isolated grader."""
+    try:
+        import numpy as np
+    except ImportError:
+        is_numpy = False
+    else:
+        is_numpy = isinstance(value, (np.generic, np.ndarray, np.dtype)) or (
+            type(value).__module__.split(".", 1)[0] == "numpy"
+        )
+    if isinstance(value, complex) or is_numpy:
+        try:
+            return _encoded_value(_PICKLE_TYPE, pickle.dumps(value, protocol=5))
+        except Exception as error:
+            raise ValueError(
+                f"Submission value of type {type(value).__name__} cannot be serialized with pickle."
+            ) from error
+    if isinstance(value, (list, tuple)):
+        return [_pack_submission_value(item) for item in value]
+    if isinstance(value, dict):
+        return {key: _pack_submission_value(item) for key, item in value.items()}
     if callable(value):
         try:
             import dill
