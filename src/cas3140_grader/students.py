@@ -15,6 +15,7 @@ from beartype.roar import BeartypeDoorHintViolation
 import httpx
 
 from .accounts import resolve_token
+from ._version import __version__
 from .models import BestScoreResponse, BestScoresResponse, ProcessResponse, VersionCheckResponse
 
 DEFAULT_SUBMISSION_URL = os.environ.get("CAS3140_SUBMISSION_URL", "https://165.132.172.120")
@@ -37,6 +38,7 @@ _PICKLE_TYPE = "pickle_value"
 _FUNCTION_TYPE = "dill_function"
 _CIRCUIT_TYPE = "qiskit_qpy"
 _LAB_NAME_RE = re.compile(r"lab(\d{2})")
+_CLIENT_HEADERS = {"X-CAS3140-Grader-Version": __version__}
 
 
 def _submission_versions() -> dict[str, str | None]:
@@ -142,7 +144,7 @@ def _submit(
     packed_value = _pack_submission_value(value)
     tls_context = ssl.create_default_context(cadata=certificate)
     # Grading may legitimately take longer than HTTPX's default 5-second timeout.
-    with httpx.Client(verify=tls_context, timeout=None) as session:
+    with httpx.Client(verify=tls_context, timeout=None, headers=_CLIENT_HEADERS) as session:
         response = session.post(
             f"{url.rstrip('/')}/submit",
             json={"token": token, "lab": lab_number, "slug": slug,
@@ -177,7 +179,7 @@ def _check_versions(
     print(f"Python version: {versions['python']}")
     print(f"Qiskit version: {versions['qiskit']}")
     tls_context = ssl.create_default_context(cadata=certificate)
-    with httpx.Client(verify=tls_context, timeout=None) as session:
+    with httpx.Client(verify=tls_context, timeout=None, headers=_CLIENT_HEADERS) as session:
         response = session.post(
             f"{url.rstrip('/')}/check-versions",
             json={"token": token, "versions": versions},
@@ -220,7 +222,7 @@ def _best_score(
         raise ValueError("lab must have the format 'labXX', where XX is a two-digit integer.")
     lab_number = int(match.group(1))
     tls_context = ssl.create_default_context(cadata=certificate)
-    with httpx.Client(verify=tls_context, timeout=None) as session:
+    with httpx.Client(verify=tls_context, timeout=None, headers=_CLIENT_HEADERS) as session:
         response = session.post(
             f"{url.rstrip('/')}/best-score",
             json={"token": token, "lab": lab_number, "slug": slug},
@@ -257,7 +259,7 @@ def _best_scores(
         raise ValueError("lab must have the format 'labXX', where XX is a two-digit integer.")
     lab_number = int(match.group(1))
     tls_context = ssl.create_default_context(cadata=certificate)
-    with httpx.Client(verify=tls_context, timeout=None) as session:
+    with httpx.Client(verify=tls_context, timeout=None, headers=_CLIENT_HEADERS) as session:
         response = session.post(f"{url.rstrip('/')}/best-scores", json={"token": token, "lab": lab_number})
     if response.is_error:
         print(_server_error_message(response))
